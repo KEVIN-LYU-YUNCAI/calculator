@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator</title>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1340.0.min.js"></script>
+</head>
+<body>
+    <h1>Simple Calculator</h1>
+
+    <!-- Login Form -->
+    <div id="loginForm">
+        <input type="email" id="email" placeholder="Email" />
+        <input type="password" id="password" placeholder="Password" />
+        <button onclick="signIn()">Sign In</button>
+        <button onclick="signUp()">Sign Up</button>
+    </div>
+
+    <!-- Calculator Form -->
+    <div id="calculator" style="display: none;">
+        <input type="number" id="num1" placeholder="Number 1">
+        <input type="number" id="num2" placeholder="Number 2">
+        <select id="operation">
+            <option value="add">Add</option>
+            <option value="subtract">Subtract</option>
+            <option value="multiply">Multiply</option>
+            <option value="divide">Divide</option>
+        </select>
+        <button onclick="calculate()">Calculate</button>
+        <p id="result"></p>
+    </div>
+
+    <script>
+        AWS.config.region = 'us-east-1'; // Use your AWS region
+        AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+            IdentityPoolId: 'YOUR_COGNITO_IDENTITY_POOL_ID',
+        });
+
+        let cognitoUser = null;
+
+        function signUp() {
+            var email = document.getElementById("email").value;
+            var password = document.getElementById("password").value;
+            var signUpDetails = {
+                ClientId: 'YOUR_COGNITO_APP_CLIENT_ID',
+                Username: email,
+                Password: password,
+                UserAttributes: [
+                    { Name: 'email', Value: email },
+                ]
+            };
+
+            const cognitoidentityserviceprovider = new AWS.CognitoIdentityServiceProvider();
+
+            cognitoidentityserviceprovider.signUp(signUpDetails, function(err, data) {
+                if (err) {
+                    alert(err.message || JSON.stringify(err));
+                } else {
+                    alert("Sign Up Successful! Please verify your email.");
+                }
+            });
+        }
+
+        function signIn() {
+            var email = document.getElementById("email").value;
+            var password = document.getElementById("password").value;
+
+            var authenticationData = {
+                Username: email,
+                Password: password,
+            };
+
+            var authenticationDetails = new AmazonCognitoIdentity.AuthenticationDetails(authenticationData);
+            var poolData = {
+                UserPoolId: 'YOUR_COGNITO_USER_POOL_ID',
+                ClientId: 'YOUR_COGNITO_APP_CLIENT_ID',
+            };
+
+            var userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+            var userData = {
+                Username: email,
+                Pool: userPool,
+            };
+
+            cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+            cognitoUser.authenticateUser(authenticationDetails, {
+                onSuccess: function(result) {
+                    alert("Login successful!");
+                    document.getElementById("loginForm").style.display = "none";
+                    document.getElementById("calculator").style.display = "block";
+                },
+                onFailure: function(err) {
+                    alert(err.message || JSON.stringify(err));
+                }
+            });
+        }
+
+        function calculate() {
+            const num1 = parseFloat(document.getElementById("num1").value);
+            const num2 = parseFloat(document.getElementById("num2").value);
+            const operation = document.getElementById("operation").value;
+            let result;
+
+            if (operation === 'add') {
+                result = num1 + num2;
+            } else if (operation === 'subtract') {
+                result = num1 - num2;
+            } else if (operation === 'multiply') {
+                result = num1 * num2;
+            } else if (operation === 'divide') {
+                result = num1 / num2;
+            }
+
+            document.getElementById("result").innerText = "Result: " + result;
+            storeResult(num1, num2, operation, result);
+        }
+
+        function storeResult(num1, num2, operation, result) {
+            const lambda = new AWS.Lambda();
+
+            const payload = {
+                num1: num1,
+                num2: num2,
+                operation: operation,
+                result: result,
+                userId: cognitoUser.getUsername(),
+            };
+
+            const params = {
+                FunctionName: 'StoreCalculationResult',  // Lambda function name
+                Payload: JSON.stringify(payload),
+            };
+
+            lambda.invoke(params, function(err, data) {
+                if (err) {
+                    alert("Error saving to DynamoDB: " + err.message);
+                } else {
+                    alert("Calculation saved to DynamoDB.");
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+
