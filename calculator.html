@@ -6,12 +6,13 @@
     <title>Calculator</title>
     <!-- 引入AWS SDK -->
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1340.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@2.1.0/dist/amazon-cognito-identity.min.js"></script>
+    <!-- 引入Cognito Identity SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@5.0.3/dist/amazon-cognito-identity.min.js"></script>
 </head>
 <body>
     <h1>Simple Calculator</h1>
 
-    <!-- Login Form -->
+    <!-- 登录表单 -->
     <div id="loginForm">
         <input type="email" id="email" placeholder="Email" />
         <input type="password" id="password" placeholder="Password" />
@@ -19,23 +20,23 @@
         <button onclick="signUp()">Sign Up</button>
     </div>
 
-    <!-- Calculator Form -->
+    <!-- 计算器表单 -->
     <div id="calculator" style="display: none;">
         <input type="number" id="num1" placeholder="Number 1">
         <input type="number" id="num2" placeholder="Number 2">
         <select id="operation">
-            <option value="add">Add</option>
-            <option value="subtract">Subtract</option>
-            <option value="multiply">Multiply</option>
-            <option value="divide">Divide</option>
+            <option value="add">加</option>
+            <option value="subtract">减</option>
+            <option value="multiply">乘</option>
+            <option value="divide">除</option>
         </select>
-        <button onclick="calculate()">Calculate</button>
+        <button onclick="calculate()">计算</button>
         <p id="result"></p>
     </div>
 
     <script>
         // 设置AWS区域
-        AWS.config.region = 'us-east-1'; // Use your AWS region
+        AWS.config.region = 'us-east-1'; // 使用你自己的AWS区域
         // 配置AWS凭证
         AWS.config.credentials = new AWS.CognitoIdentityCredentials({
             IdentityPoolId: 'us-east-1_eoAqsgQMT',
@@ -48,8 +49,10 @@
          * @description 注册新用户并发送验证邮件
          */
         function signUp() {
+            // 获取用户输入的邮箱和密码
             var email = document.getElementById("email").value;
             var password = document.getElementById("password").value;
+            // 构建注册参数
             var signUpDetails = {
                 ClientId: '5jkql1b1crgpmn8dbcektrri22',
                 Username: email,
@@ -59,11 +62,16 @@
                 ]
             };
 
+            // 创建Cognito服务实例
             const cognitoidentityserviceprovider = new AWS.CognitoIdentityServiceProvider();
+
+            // 调用注册方法
             cognitoidentityserviceprovider.signUp(signUpDetails, function(err, data) {
                 if (err) {
+                    // 注册失败，显示错误信息
                     alert(err.message || JSON.stringify(err));
                 } else {
+                    // 注册成功，提示用户验证邮箱
                     alert("Sign Up Successful! Please verify your email.");
                 }
             });
@@ -74,42 +82,44 @@
          * @description 用户登录并显示计算器界面
          */
         function signIn() {
+            // 获取用户输入的邮箱和密码
             var email = document.getElementById("email").value;
             var password = document.getElementById("password").value;
 
+            // 构建认证数据
             var authenticationData = {
                 Username: email,
                 Password: password,
             };
 
+            // 创建认证详情实例
             var authenticationDetails = new AmazonCognitoIdentity.AuthenticationDetails(authenticationData);
+            // 构建用户池数据
             var poolData = {
                 UserPoolId: 'us-east-1_eoAqsgQMT',
                 ClientId: '5jkql1b1crgpmn8dbcektrri22',
             };
 
+            // 创建用户池实例
             var userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+            // 构建用户数据
             var userData = {
                 Username: email,
                 Pool: userPool,
             };
 
+            // 创建Cognito用户实例
             cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+            // 调用认证方法
             cognitoUser.authenticateUser(authenticationDetails, {
                 onSuccess: function(result) {
-                    // 登录成功，获取凭证
-                    AWS.config.credentials.refresh(function(err) {
-                        if (err) {
-                            alert('Error refreshing credentials: ' + err);
-                        } else {
-                            console.log("Credentials refreshed!");
-                            alert("Login successful!");
-                            document.getElementById("loginForm").style.display = "none";
-                            document.getElementById("calculator").style.display = "block";
-                        }
-                    });
+                    // 登录成功，显示计算器界面
+                    alert("Login successful!");
+                    document.getElementById("loginForm").style.display = "none";
+                    document.getElementById("calculator").style.display = "block";
                 },
                 onFailure: function(err) {
+                    // 登录失败，显示错误信息
                     alert(err.message || JSON.stringify(err));
                 }
             });
@@ -120,11 +130,13 @@
          * @description 根据用户选择的操作进行计算并显示结果
          */
         function calculate() {
+            // 获取用户输入的数字和操作符
             const num1 = parseFloat(document.getElementById("num1").value);
             const num2 = parseFloat(document.getElementById("num2").value);
             const operation = document.getElementById("operation").value;
             let result;
 
+            // 根据操作符进行计算
             if (operation === 'add') {
                 result = num1 + num2;
             } else if (operation === 'subtract') {
@@ -135,17 +147,25 @@
                 result = num1 / num2;
             }
 
+            // 显示计算结果
             document.getElementById("result").innerText = "Result: " + result;
+            // 存储计算结果
             storeResult(num1, num2, operation, result);
         }
 
         /**
          * 存储结果函数
          * @description 将计算结果存储到DynamoDB
+         * @param {number} num1 - 第一个操作数
+         * @param {number} num2 - 第二个操作数
+         * @param {string} operation - 操作符
+         * @param {number} result - 计算结果
          */
         function storeResult(num1, num2, operation, result) {
+            // 创建Lambda服务实例
             const lambda = new AWS.Lambda();
 
+            // 构建存储参数
             const payload = {
                 num1: num1,
                 num2: num2,
@@ -154,15 +174,19 @@
                 userId: cognitoUser.getUsername(),
             };
 
+            // 构建Lambda调用参数
             const params = {
-                FunctionName: 'calculator',  // Lambda function name
+                FunctionName: 'calculator',  // Lambda函数名称
                 Payload: JSON.stringify(payload),
             };
 
+            // 调用Lambda函数
             lambda.invoke(params, function(err, data) {
                 if (err) {
+                    // 存储失败，显示错误信息
                     alert("Error saving to DynamoDB: " + err.message);
                 } else {
+                    // 存储成功，提示用户
                     alert("Calculation saved to DynamoDB.");
                 }
             });
